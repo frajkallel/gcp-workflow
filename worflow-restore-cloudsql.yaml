@@ -1,0 +1,22 @@
+main:
+    params: [args]
+    steps:
+    - lastBackup:
+        call: googleapis.sqladmin.v1.backupRuns.list
+        args:
+            instance: ${args.srcInstance}
+            project: ${args.srcProjectId}
+            maxResults: "1"
+        result: listResult
+    - restoreBackup:
+        call: googleapis.sqladmin.v1.instances.restoreBackup
+        args:
+            instance: ${args.dstInstance}
+            project:  ${args.dstProjectId}
+            body:
+                restoreBackupContext:
+                    backupRunId: ${listResult.items[0].id}
+                    instanceId: ${args.srcInstance}
+                    kind: "sql#restoreBackupContext"
+                    project: ${args.srcProjectId}
+        result: restoreBackupResult
