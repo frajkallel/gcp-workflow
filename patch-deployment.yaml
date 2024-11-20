@@ -1,6 +1,6 @@
 main:
   steps:
-    - create_deployment:
+    - patch_deployment:
         call: gke.request
         args:
           cluster_id: "poc"
