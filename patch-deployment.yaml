@@ -1,0 +1,18 @@
+main:
+  steps:
+    - create_deployment:
+        call: gke.request
+        args:
+          cluster_id: "poc"
+          project: "fkallel-sbx"
+          location: "europe-west1"
+          method: "PATCH"
+          path: "/apis/apps/v1/namespaces/default/deployments/nginx-deployment"
+          headers:
+             "Content-Type" : "application/strategic-merge-patch+json"
+          body:
+            spec:
+              replicas: 1
+        result: result
+    - returnResult:
+        return: '${result}'
