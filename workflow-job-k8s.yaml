@@ -6,7 +6,7 @@ main:
             cluster_id: "poc"
             project: "sbx"
             location: "europe-west1"
-            namespace: default
+            namespace: k8s-jobs
             job:
                 apiVersion: batch/v1
                 kind: Job
@@ -27,7 +27,7 @@ main:
             cluster_id: "poc"
             project: "sbx"
             location: "europe-west1"
-            namespace: default
+            namespace: k8s-jobs
             job_name: ${job_details.metadata.name}
         result: completed_job
     - log_job_status:
@@ -41,5 +41,68 @@ main:
             cluster_id: "poc"
             project: "sbx"
             location: "europe-west1"
-            namespace: default
+            namespace: k8s-jobs
             job_name: ${job_details.metadata.name}
+
+    - delete_pods:
+        call: gke.request
+        args:
+          cluster_id: "poc"
+          project: "sbx"
+          location: "europe-west1"
+          method: "DELETE"
+          path: "/api/v1/namespaces/k8s-jobs/pods"
+main:
+  steps:
+    - create_job:
+        call: gke.create_job
+        args:
+            cluster_id: "poc"
+            project: "sbx"
+            location: "europe-west1"
+            namespace: k8s-jobs
+            job:
+                apiVersion: batch/v1
+                kind: Job
+                metadata:
+                    name: my-job
+                spec:
+                    template:
+                        spec:
+                            containers:
+                                - name: my-container
+                                  image: busybox
+                                  command: ["sleep", "10"]
+                            restartPolicy: Never
+        result: job_details
+    - await_job:
+        call: gke.await_job
+        args:
+            cluster_id: "poc"
+            project: "sbx"
+            location: "europe-west1"
+            namespace: k8s-jobs
+            job_name: ${job_details.metadata.name}
+        result: completed_job
+    - log_job_status:
+        call: sys.log
+        args:
+            severity: INFO
+            data: '${"Job status: " + completed_job.status.conditions[0].type}'
+    - delete_job:
+        call: gke.delete_job
+        args:
+            cluster_id: "poc"
+            project: "sbx"
+            location: "europe-west1"
+            namespace: k8s-jobs
+            job_name: ${job_details.metadata.name}
+
+    - delete_pods:
+        call: gke.request
+        args:
+          cluster_id: "poc"
+          project: "sbx"
+          location: "europe-west1"
+          method: "DELETE"
+          path: "/api/v1/namespaces/k8s-jobs/pods"
