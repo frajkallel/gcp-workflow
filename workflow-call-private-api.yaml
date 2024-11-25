@@ -1,0 +1,18 @@
+# iam for agent SA
+# service-ProjectID@gcp-sa-workflows.iam.gserviceaccount.com
+# 1- Cloud Workflows Service Agent
+# 2- Compute Network Viewer
+# 3- Private Service Connect Authorized Service
+# 4- Service Directory viewer
+# doc: https://cloud.google.com/workflows/docs/http-requests
+main:
+    params: [input]
+    steps:
+    - readWikipedia:
+        call: http.get
+        args:
+            url: http://test-private.api.fr
+            private_service_name: projects/projectID/locations/europe-west1/namespaces/test/services/nginx
+        result: wikiResult
+    - returnOutput:
+            return: '${wikiResult}'
