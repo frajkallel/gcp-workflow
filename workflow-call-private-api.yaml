@@ -8,7 +8,7 @@
 # doc: https://cloud.google.com/workflows/docs/http-requests
 # case 2: cloud workflows and target service are not in the same project
 # if shared vpc is used
-# on the target shared vpc that contain private api
+# on the target shared vpc that contain private api (net gcp project)
 # 1- Create firewall rules to allow TCP ingress from 35.199.192.0/19 on the port 443 and 80
 # 2- IAM for workflows agent SA, add roles Cloud Workflows Service Agent, Compute Network Viewer,Private Service Connect Authorized Service,Service Directory Admin
 # On the workflows project
