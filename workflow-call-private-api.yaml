@@ -1,3 +1,4 @@
+# case 1: cloud workflows and target service are in the same project
 # iam for agent SA
 # service-ProjectID@gcp-sa-workflows.iam.gserviceaccount.com
 # 1- Cloud Workflows Service Agent
@@ -5,6 +6,14 @@
 # 3- Private Service Connect Authorized Service
 # 4- Service Directory viewer
 # doc: https://cloud.google.com/workflows/docs/http-requests
+# case 2: cloud workflows and target service are not in the same project
+# if shared vpc is used
+# on the target shared vpc that contain private api
+# 1- Create firewall rules to allow TCP ingress from 35.199.192.0/19 on the port 443 and 80
+# 2- IAM for workflows agent SA, add roles Cloud Workflows Service Agent, Compute Network Viewer,Private Service Connect Authorized Service,Service Directory Admin
+# On the workflows project
+# 3- Create a Service Directory namespace and service. Then, create an endpoint for this service
+# docs: https://cloud.google.com/service-directory/docs/configuring-private-network-access
 main:
     params: [input]
     steps:
