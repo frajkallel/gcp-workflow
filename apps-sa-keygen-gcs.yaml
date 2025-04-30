@@ -65,7 +65,6 @@ main:
   - getKeyId:
       assign:
         - keyid: ${text.split(key.body.name, "/")}
-		
   - uploadKey:
       try:
         call: http.post
@@ -87,8 +86,7 @@ main:
                 - condition: ${e.code == 403}
                   next: authProblem
             - UnhandledAddSecretException:
-                raise: ${e}        
-	  
+                raise: ${e}
   - Notify:
       call: http.post
       args:
