@@ -124,7 +124,6 @@ main:
           Content-Type: "application/json"
         body:
           text: ${"Hello @all,\n A new service account key was generated for "+ serviceAccountEmail +". \n Run this command to get it** \n gcloud beta secrets versions access latest --secret="+event_datetime+"-"+keyid[5]+" --project="+ProjectSecId+"\n Best Regards,\n Squad Cloud Team"}
-			  
   - returnOutput:
       return: "The end"  
   - connectionProblem:
