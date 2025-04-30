@@ -1,0 +1,142 @@
+main:
+  params: [args]
+  steps:
+  - init:
+      assign:
+        - ProjectId: ${args.ProjectId}
+        - ProjectSecId: ${args.ProjectSecId}
+        - serviceAccountName: ${args.serviceAccountName}
+        - serviceAccountEmail: ${serviceAccountName+"@"+ProjectId+".iam.gserviceaccount.com"}
+        - IamKeyType: "USER_MANAGED"
+        - sapcewebhook: ${args.sapcewebhook}
+        - event_datetime: ${args.event_datetime}
+  - logArgs:
+        call: sys.log
+        args:
+            text: ${"The provideds args, project:" + ProjectId + ", serviceAccountName:" + serviceAccountName + ", serviceAccountEmail:" + serviceAccountEmail}
+            severity: "INFO"
+  - getServiceAccount:
+      try:
+        call: http.get
+        args:
+          url: ${"https://iam.googleapis.com/v1/projects/"+ProjectId+"/serviceAccounts/"+serviceAccountEmail}
+          auth:
+            type: OAuth2
+        result: serviceAccount
+      except:
+        as: e
+        steps:
+            - handledGetSaException:
+                switch:
+                - condition: ${not("HttpError" in e.tags)}
+                  next: connectionProblem
+                - condition: ${e.code == 404}
+                  next: logServiceAccountNotFound
+                - condition: ${e.code == 403}
+                  next: authProblem
+            - UnhandledGetSaException:
+                raise: ${e}
+  - logServiceAccountFound:
+      call: sys.log
+      args:
+          text: ${"Service Account Found"}
+          severity: "INFO"
+  - createKey:
+      try:
+        call: http.post
+        args:
+          url: ${"https://iam.googleapis.com/v1/projects/"+ProjectId+"/serviceAccounts/"+serviceAccountEmail+"/keys"}
+          auth:
+            type: OAuth2
+        result: key
+      except:
+        as: e
+        steps:
+            - handledCreateKeyException:
+                switch:
+                - condition: ${not("HttpError" in e.tags)}
+                  next: connectionProblem
+                - condition: ${e.code == 404}
+                  next: urlNotFound
+                - condition: ${e.code == 403}
+                  next: authProblem
+            - UnhandledCreateKeyException:
+                raise: ${e}
+  - getKeyId:
+      assign:
+        - keyid: ${text.split(key.body.name, "/")}
+
+  - createSecret:
+      try:
+        call: http.post
+        args:
+          url: ${"https://secretmanager.googleapis.com/v1/projects/"+ProjectSecId+"/secrets?secretId="+event_datetime+"-"+keyid[5]}
+          auth:
+            type: OAuth2
+          body:
+            replication:
+              userManaged: {"replicas": [{"location": "europe-west1"}]}
+        result: secret
+      except:
+        as: e
+        steps:
+            - handledCreateSecretException:
+                switch:
+                - condition: ${not("HttpError" in e.tags)}
+                  next: connectionProblem
+                - condition: ${e.code == 404}
+                  next: urlNotFound
+                - condition: ${e.code == 403}
+                  next: authProblem
+                - condition: ${e.code == 409}
+                  next: addSecret
+            - UnhandledCreateSecretException:
+                raise: ${e}
+  - addSecret:
+      try:
+        call: http.post
+        args:
+          url: ${"https://secretmanager.googleapis.com/v1beta1/projects/"+ProjectSecId+"/secrets/"+event_datetime+"-"+keyid[5]+":addVersion"}
+          auth:
+            type: OAuth2
+          body:
+            payload:
+              data: ${key.body.privateKeyData}
+        result: newSecret
+      except:
+        as: e
+        steps:
+            - handledAddSecretException:
+                switch:
+                - condition: ${not("HttpError" in e.tags)}
+                  next: connectionProblem
+                - condition: ${e.code == 404}
+                  next: urlNotFound
+                - condition: ${e.code == 403}
+                  next: authProblem
+            - UnhandledAddSecretException:
+                raise: ${e}
+  - Notify:
+      call: http.post
+      args:
+        url: ${sapcewebhook}
+        headers:
+          Content-Type: "application/json"
+        body:
+          text: ${"Hello @all,\n A new service account key was generated for "+ serviceAccountEmail +". \n Run this command to get it** \n gcloud beta secrets versions access latest --secret="+event_datetime+"-"+keyid[5]+" --project="+ProjectSecId+"\n Best Regards,\n Squad Cloud Team"}
+			  
+  - returnOutput:
+      return: "The end"  
+  - connectionProblem:
+      raise: "Connection problem; check URL"
+  - urlNotFound:
+      raise: "Sorry, URL wasn't found"
+  - authProblem:
+      raise: "Authentication error"
+  - keyExist:
+      raise: "Key Already existe"
+  - logServiceAccountNotFound:
+      call: sys.log
+      args:
+          text: "Service Account Not Founded"
+          severity: "INFO"
