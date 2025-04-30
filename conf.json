@@ -1,0 +1,8 @@
+[
+  {
+    "ProjectId": "fkallel-sbx",
+    "ProjectSecId": "fkallel-sbx",
+    "serviceAccountName": ["bastion", "wf-sa1"],
+    "sapcewebhook": "GOOGLE_CHAT_SPACE_URL"
+  }
+]
