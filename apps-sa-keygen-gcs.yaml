@@ -4,7 +4,6 @@ main:
   - init:
       assign:
         - ProjectId: ${args.ProjectId}
-        - ProjectSecId: ${args.ProjectSecId}
         - serviceAccountName: ${args.serviceAccountName}
         - serviceAccountEmail: ${serviceAccountName+"@"+ProjectId+".iam.gserviceaccount.com"}
         - IamKeyType: "USER_MANAGED"
@@ -110,4 +109,3 @@ main:
       args:
           text: "Service Account Not Founded"
           severity: "INFO"
-
