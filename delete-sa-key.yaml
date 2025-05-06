@@ -1,0 +1,46 @@
+main:
+  params: [args]
+  steps:
+    - init:
+        assign:
+            - ProjectId: ${args.ProjectId}
+            - serviceAccountName: ${args.serviceAccountName}
+            - serviceAccountEmail: ${serviceAccountName+"@"+ProjectId+".iam.gserviceaccount.com"}
+    - listKeys:
+        call: http.get
+        args:
+          url: ${"https://iam.googleapis.com/v1/projects/"+ProjectId+"/serviceAccounts/"+serviceAccountEmail+"/keys"}
+          auth:
+            type: OAuth2
+        result: keys
+    - iterateKeys:
+        for:
+            value: key
+            in: ${keys.body.keys}
+            steps:
+                - extractCreateYear:
+                    assign:
+                        - keyCreateTime: ${key.validAfterTime}
+                        - keyCreateYear: ${int(text.substring(keyCreateTime, 0, 4))}
+                        - currentYear: ${int(text.substring(time.format(sys.now()), 0, 4))}
+                        - lastYear: ${currentYear -1}
+                - maybeDeleteKey:
+                    switch:
+                        - condition: ${keyCreateYear == lastYear}
+                          steps:
+                            - checkKeytype:
+                                switch:
+                                    - condition: ${key.keyType == "USER_MANAGED"}
+                                      steps:
+                                        - logDeletedKey:
+                                            call: sys.log
+                                            args:
+                                              data: ${"Deleted key** " + key.name}
+                                        - deleteKey:
+                                            call: http.delete
+                                            args:
+                                                url: ${"https://iam.googleapis.com/v1/"+key.name}
+                                                auth:
+                                                    type: OAuth2
+
+                
