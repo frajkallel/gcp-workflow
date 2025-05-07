@@ -87,13 +87,19 @@ main:
             - UnhandledAddSecretException:
                 raise: ${e}
   - Notify:
-      call: http.post
-      args:
-        url: ${sapcewebhook}
-        headers:
-          Content-Type: "application/json"
-        body:
-          text: ${"Hello @all,\n A new service account key was generated for "+ serviceAccountEmail +". \n To download it, clic on the url** https://storage.cloud.google.com/"+BucketName+"/"+ProjectId+"-"+serviceAccountName+"-"+keyid[5]+".json\n Best Regards,\n Squad Cloud Team"}
+      try:
+        call: http.post
+        args:
+          url: ${sapcewebhook}
+          headers:
+            Content-Type: "application/json"
+          body:
+            text: ${"Hello @all,\n A new service account key was generated for "+ serviceAccountEmail +". \n To download it, clic on the url** https://storage.cloud.google.com/"+BucketName+"/"+ProjectId+"-"+serviceAccountName+"-"+keyid[5]+".json\n Best Regards,\n Squad Cloud Team"}
+      except:
+        as: e
+        steps:
+            - RaiseErrorNotify:
+                raise: ${e}      
   - returnOutput:
       return: "The end"  
   - connectionProblem:
