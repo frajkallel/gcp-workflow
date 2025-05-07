@@ -7,12 +7,18 @@ main:
             - serviceAccountName: ${args.serviceAccountName}
             - serviceAccountEmail: ${serviceAccountName+"@"+ProjectId+".iam.gserviceaccount.com"}
     - listKeys:
-        call: http.get
-        args:
-          url: ${"https://iam.googleapis.com/v1/projects/"+ProjectId+"/serviceAccounts/"+serviceAccountEmail+"/keys"}
-          auth:
-            type: OAuth2
-        result: keys
+        try:
+          call: http.get
+          args:
+            url: ${"https://iam.googleapis.com/v1/projects/"+ProjectId+"/serviceAccounts/"+serviceAccountEmail+"/keys"}
+            auth:
+              type: OAuth2
+          result: keys
+        except:
+            as: e
+            steps:
+                - RaiseExceptionListKey:
+                    raise: ${e}
     - iterateKeys:
         for:
             value: key
@@ -37,10 +43,16 @@ main:
                                             args:
                                               data: ${"Deleted key** " + key.name}
                                         - deleteKey:
-                                            call: http.delete
-                                            args:
+                                            try:
+                                              call: http.delete
+                                              args:
                                                 url: ${"https://iam.googleapis.com/v1/"+key.name}
                                                 auth:
                                                     type: OAuth2
+                                            except:
+                                                as: e
+                                                steps:
+                                                    - RaiseExceptionDeleteKey:
+                                                        raise: ${e}
 
                 
