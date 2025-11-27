@@ -1,0 +1,188 @@
+main:
+  params: [args]
+  steps:
+  - init:
+      assign:
+        - ProjectId: ${args.ProjectId}
+        - serviceAccountName: ${args.serviceAccountName}
+        - serviceAccountEmail: ${serviceAccountName+"@"+ProjectId+".iam.gserviceaccount.com"}
+        - IamKeyType: "USER_MANAGED"
+        - AzdvOrg: ${args.AzdvOrg}
+        - AzdvProject: ${args.AzdvProject}
+  - patAzdvSecret:
+        call: googleapis.secretmanager.v1.projects.secrets.versions.accessRaw
+        args:
+          secret_id: "pat_azdv_auth"
+          version: "latest"
+          project_id: "GCP_PROJECT_ID"
+        result: accessRawResult
+  - logArgs:
+        call: sys.log
+        args:
+            text: ${"The provideds args, project:" + ProjectId + ", serviceAccountName:" + serviceAccountName + ", serviceAccountEmail:" + serviceAccountEmail}
+            severity: "INFO"
+  - getServiceAccount:
+      try:
+        call: http.get
+        args:
+          url: ${"https://iam.googleapis.com/v1/projects/"+ProjectId+"/serviceAccounts/"+serviceAccountEmail}
+          auth:
+            type: OAuth2
+        result: serviceAccount
+      except:
+        as: e
+        steps:
+            - handledGetSaException:
+                switch:
+                - condition: ${not("HttpError" in e.tags)}
+                  next: connectionProblem
+                - condition: ${e.code == 404}
+                  next: logServiceAccountNotFound
+                - condition: ${e.code == 403}
+                  next: authProblem
+            - UnhandledGetSaException:
+                raise: ${e}
+  - logServiceAccountFound:
+      call: sys.log
+      args:
+          text: ${"Service Account Found"}
+          severity: "INFO"
+  - createKey:
+      try:
+        call: http.post
+        args:
+          url: ${"https://iam.googleapis.com/v1/projects/"+ProjectId+"/serviceAccounts/"+serviceAccountEmail+"/keys"}
+          auth:
+            type: OAuth2
+        result: key
+      except:
+        as: e
+        steps:
+            - handledCreateKeyException:
+                switch:
+                - condition: ${not("HttpError" in e.tags)}
+                  next: connectionProblem
+                - condition: ${e.code == 404}
+                  next: urlNotFound
+                - condition: ${e.code == 403}
+                  next: authProblem
+            - UnhandledCreateKeyException:
+                raise: ${e}
+  - loopThroughAzdvProject:
+      for:
+        value: item
+        in: ${AzdvProject}
+        steps:
+            - listAzdvSecureFiles:
+                try:
+                    call: http.post
+                    args:
+                      url: "https://azdv-secret-list-secure-files.run.app"
+                      auth:
+                        type: OIDC
+                      headers:
+                        Content-Type: application/json
+                      body:
+                        azdv_orga: ${AzdvOrg}
+                        azdv_project: ${item}
+                    result: filelist
+                except:
+                    as: e
+                    steps:
+                        - deleteKeyOnFailureList:
+                            call: http.delete
+                            args:
+                                url: ${"https://iam.googleapis.com/v1/"+key.body.name}
+                                auth:
+                                    type: OAuth2
+                        - handledListAzdvSecureFilesException:
+                            raise: ${e}
+            - getFileIdInit:
+                assign:
+                    - secureFiles: ${filelist.body.value}
+                    - fileId: ${null}
+                    - file_name: ${ProjectId+"-"+serviceAccountName+".json"}
+            - loopThroughFiles:
+                for:
+                    value: file
+                    in: ${secureFiles}
+                    steps:
+                    - check:
+                        switch:
+                            - condition: ${file.name == file_name}
+                              assign:
+                                - fileId: ${file.id}
+                                - break: 
+            - whereToJump:
+                switch:
+                  - condition: ${fileId == null}
+                    next: uploadSecret
+                next: deleteAzdvSecureFile                     
+            - deleteAzdvSecureFile:
+                try:
+                    call: http.post
+                    args:
+                      url: "https://azdv-delete-secure-file.run.app"
+                      auth:
+                        type: OIDC
+
+                      headers:
+                        Content-Type: application/json
+                      body:
+                        azdv_orga: ${AzdvOrg}
+                        azdv_project: ${item}
+                        fileId: ${fileId}
+                    result: oldSecret
+                except:
+                    as: e
+                    steps:
+                        - deleteKeyOnFailureDelete:
+                            call: http.delete
+                            args:
+                                url: ${"https://iam.googleapis.com/v1/"+key.body.name}
+                                auth:
+                                    type: OAuth2
+                        - handleddeleteAzdvSecureFileException:
+                            raise: ${e}
+            - uploadSecret:
+                try:
+                    call: http.post
+                    args:
+                      url: "https://azdv-upload-secure-file.run.app"
+                      auth:
+                        type: OIDC
+                      headers:
+                        Content-Type: "application/json"
+                      body:
+                        azdv_orga: ${AzdvOrg}
+                        azdv_project: ${item}
+                        gcp_project_id: ${ProjectId}
+                        service_account_name: ${serviceAccountName}
+                        payload: ${key.body.privateKeyData}
+                    result: newSecret
+                except:
+                    as: e
+                    steps:
+                        - deleteKeyOnFailure:
+                            call: http.delete
+                            args:
+                                url: ${"https://iam.googleapis.com/v1/"+key.body.name}
+                                auth:
+                                    type: OAuth2
+                        - handledAddSecretException:
+                            raise: ${e}
+  - returnOutput:
+      return: "The end"  
+  - connectionProblem:
+      raise: "Connection problem; check URL"
+  - urlNotFound:
+      raise: "Sorry, URL wasn't found"
+  - authProblem:
+      raise: "Authentication error"
+  - keyExist:
+      raise: "Key Already existe"
+  - logServiceAccountNotFound:
+      call: sys.log
+      args:
+          text: "Service Account Not Founded"
+          severity: "INFO"
